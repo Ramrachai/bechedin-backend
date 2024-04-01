@@ -1,0 +1,24 @@
+{
+  "name": "bikearot-backend",
+  "version": "1.0.0",
+  "description": "a used or second hand motor bikes buy-sell platform. In bikroy.com there are tons of product category which are listed for buy-sell. But bike-arot platform will only be dedicated for selling and buying used bikes. Posting advertisements and visiting the website is fully free. But there will be a premium feature in the application.  While buying a bike, if a user needs an expert opinion or consultancy or thorough testing of the bike to make sure the bike has no problem then the user has to pay the platform some money.",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.2.3",
+    "nodemon": "^3.1.0"
+  }
+}
