@@ -16,8 +16,8 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: false,
       unique: true,
+      lowercase: true,
     },
     password: {
       type: String,
@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-//hash password before saving users.
+// Hash password before saving users
 userSchema.pre('save', async function (next) {
   try {
     if (!this.isModified('password')) {
@@ -53,7 +53,7 @@ userSchema.pre('save', async function (next) {
   }
 });
 
-//compare password
+// Compare password
 userSchema.methods.comparePassword = async function (clientPassword, next) {
   try {
     const isMatch = await bcrypt.compare(clientPassword, this.password);
