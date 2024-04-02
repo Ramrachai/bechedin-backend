@@ -2,9 +2,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const userRoutes = require('./routes/userRoutes');
+const sendEmail = require('./utils/sendEmail');
 const app = express();
 
 // Middlewares for security and parsing
@@ -12,6 +14,7 @@ app.use(cors());
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Database connection (improved error handling)
 mongoose
@@ -32,7 +35,7 @@ mongoose
 // Routes
 app.use('/api/user', userRoutes);
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   res.json({ message: 'Connected to the server' });
 });
 app.post('/', (req, res) => {

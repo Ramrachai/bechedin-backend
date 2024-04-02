@@ -24,14 +24,20 @@ const userSchema = new mongoose.Schema(
       required: true,
       min: 4,
     },
-    otp: {
-      type: Number,
-      expires: '5m',
-    },
+
     role: {
       type: String,
       enum: ['user', 'admin', 'moderator'],
       default: 'user',
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejec', 'disabled'],
     },
   },
   {
