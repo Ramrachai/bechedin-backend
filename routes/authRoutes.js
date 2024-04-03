@@ -6,6 +6,6 @@ const alluser = require('../controller/user/alluser');
 router.get('/', alluser);
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-router.post('/otp-verify/:id?', authController.verifyOTP);
+router.post('/otp-verify', authController.verifyOTP);
 
 module.exports = router;

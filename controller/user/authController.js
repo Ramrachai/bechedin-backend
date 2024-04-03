@@ -1,9 +1,9 @@
-const User = require('../../models/userModel');
+const UserModel = require('../../models/userModel');
 const validateUser = require('../../utils/validateUser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../../utils/sendEmail');
-const otpModel = require('../../models/otpModel');
+const OTPModel = require('../../models/otpModel');
 
 // ==== user registration controller
 const register = async (req, res) => {
@@ -17,7 +17,7 @@ const register = async (req, res) => {
         .json({ status: 'error', message: validationError });
     }
     //check if user already exists
-    let user = await User.findOne({ $or: [{ email }, { phone }] });
+    let user = await UserModel.findOne({ $or: [{ email }, { phone }] });
     if (user) {
       console.log('user already exist');
       return res
@@ -25,7 +25,7 @@ const register = async (req, res) => {
         .json({ status: 'failed', message: 'User already exists' });
     }
     // create a new user
-    let newUser = await User.create({ name, phone, email, password });
+    let newUser = await UserModel.create({ name, phone, email, password });
     if (!newUser) {
       throw new Error('Unable to save user in Database');
     }
@@ -37,14 +37,17 @@ const register = async (req, res) => {
     const emailResult = await sendEmail(email, emailSubject, emailText);
     if (emailResult.success) {
       console.log('OTP send successfully');
+      await OTPModel.create({ email, otp }); // save otp and email in DB
     } else {
       console.log('Failed to send OTP via Email');
     }
 
+    const maxAge = 60 * 60 * 1000; //  1 hour
+
     res.cookie(
       'userInfo',
       { email: newUser.email, id: newUser._id },
-      { maxAge: 60 * 60 * 1000 }
+      { maxAge: maxAge }
     );
 
     return res.status(201).json({
@@ -61,25 +64,39 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await UserModel.findOne({ email });
     if (!user) {
       console.log('user not found');
       return res.status(404).json({ message: 'User not found' });
     }
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    // Important: disabled only for development , must enable it before product.
+    // const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    const isPasswordValid = password === user.password;
+
     if (!isPasswordValid) {
       console.log('Invalid Password!');
       return res.status(401).json({ message: 'Invalid Password!' });
     }
     const token = jwt.sign(
-      { userId: user._id, userName: user.name, useEmail: user.email },
+      {
+        userId: user._id,
+        userName: user.name,
+        useEmail: user.email,
+        loggedIn: true,
+      },
       process.env.SECRET,
       { expiresIn: '24h' }
     );
 
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milisecond
+    const maxAge = 5 * 60 * 1000; // 24 hours in milisecond
 
-    res.cookie('token', token, { httpOnly: true, secure: true, maxAge });
+    res.cookie(
+      'token',
+      { token, loggedIn: true },
+      { httpOnly: true, secure: true, maxAge }
+    );
     return res.status(200).json({
       token,
       user: { _id: user.id, email: user.email, role: user.role },
@@ -94,25 +111,38 @@ const login = async (req, res) => {
 const verifyOTP = async (req, res) => {
   try {
     const { otp } = req.body;
-    const { email, _id } = req.cookie;
-    const user = await otpModel.findOne({ email });
-    if (!user || user.otp !== otp) {
-      await User.findOneAndDelete({ email });
+    console.log(
+      'your cookies  are : ',
+      req.cookies,
+      `email == ${req.cookies.userInfo.email} || id == ${req.cookies.userInfo.id}`
+    );
+    const { email, id } = req.cookies.userInfo;
+    const DB_OTP = await OTPModel.findOne({ email });
+    console.log('DB otp status is ', DB_OTP);
+    if (!DB_OTP || DB_OTP.otp !== Number(otp)) {
+      await UserModel.findOneAndDelete({ email }); //delet unverified user
       return res.status(400).json({ verified: false, message: 'Invalid OTP' });
     }
 
     //after successful verification
-    await otpModel.findOneAndDelete({ email });
-    await User.findByIdAndUpdate(_id, { $set: { isVerified: true } }); //
+    await OTPModel.findOneAndDelete({ email }); // delete otp
+    console.log('otp deleted from OTPModel');
+    await UserModel.findByIdAndUpdate(id, { $set: { isVerified: true } }); // update user status
+    console.log('user status updated: isVarified=true');
 
     // Generate JWT token and login user
     const token = jwt.sign(
-      { userId: user._id, userName: user.name, userEmail: user.email },
-      process.env.JWT_SECRET,
+      { userId: DB_OTP._id, userEmail: DB_OTP.email, loggedIn: true },
+      process.env.SECRET,
       { expiresIn: '24h' }
     );
     let maxAge = 60 * 60 * 1000; // 1 hour
-    res.cookie('token', token, { httpOnly: true, secure: true, maxAge });
+    res.cookie(
+      'token',
+      { token, loggedIn: true },
+      { httpOnly: true, secure: true, maxAge }
+    );
+    console.log('token sent in cookie');
     return res
       .status(200)
       .json({ message: 'OTP verified successfully', verified: true });

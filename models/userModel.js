@@ -45,29 +45,21 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Hash password before saving users
-userSchema.pre('save', async function (next) {
-  try {
-    if (!this.isModified('password')) {
-      return next();
-    }
-    const hashedPassword = await bcrypt.hash(this.password, 10);
-    this.password = hashedPassword;
-    return next();
-  } catch (error) {
-    return next(error);
-  }
-});
+// === Important: currently disabled for development purpose.=== 
+// ====Important:  Don't forget to enabled for production==== 
 
-// Compare password
-userSchema.methods.comparePassword = async function (clientPassword, next) {
-  try {
-    const isMatch = await bcrypt.compare(clientPassword, this.password);
-    return isMatch;
-  } catch (error) {
-    return next(error);
-  }
-};
+// userSchema.pre('save', async function (next) {
+//   try {
+//     if (!this.isModified('password')) {
+//       return next();
+//     }
+//     const hashedPassword = await bcrypt.hash(this.password, 10);
+//     this.password = hashedPassword;
+//     return next();
+//   } catch (error) {
+//     return next(error);
+//   }
+// });
 
 const User = mongoose.model('User', userSchema);
 

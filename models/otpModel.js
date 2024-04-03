@@ -4,7 +4,6 @@ const otpModelSchema = new mongoose.Schema(
   {
     otp: {
       type: Number,
-      expires: '5m',
     },
     email: {
       type: String,
@@ -15,6 +14,6 @@ const otpModelSchema = new mongoose.Schema(
   }
 );
 
-const otpModel = mongoose.model('otpModel', otpModelSchema);
+const OtpModel = mongoose.model('otpModel', otpModelSchema);
 
-module.exports = otpModel;
+module.exports = OtpModel;

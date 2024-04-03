@@ -4,9 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
-
-const userRoutes = require('./routes/userRoutes');
-const sendEmail = require('./utils/sendEmail');
+const authRoutes = require('./routes/authRoutes');
 const app = express();
 
 // Middlewares for security and parsing
@@ -33,11 +31,21 @@ mongoose
   });
 
 // Routes
-app.use('/api/user', userRoutes);
+app.use('/api/auth', authRoutes);
 
+//testing apis
 app.get('/', async (req, res) => {
-  res.json({ message: 'Connected to the server' });
+  console.log('get request received');
+  return res.json({ message: 'Connected to the server' });
 });
 app.post('/', (req, res) => {
-  res.json({ message: 'got post reqest', data: req.body });
+  console.log('got post request==', req.body);
+  let { email, name } = req.body;
+  res.cookie(
+    'token',
+    { token: '1242342', loggedIn: true, email, name },
+    { maxAge: 2 * 68 * 1000 }
+  );
+
+  return res.json({ message: 'got post reqest', data: req.body });
 });
