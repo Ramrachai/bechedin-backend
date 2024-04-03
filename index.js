@@ -6,6 +6,8 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const jwt = require('jsonwebtoken');
+const extractJWT = require('./utils/extractJWT');
+const generateOTP = require('./utils/generateOTP');
 const app = express();
 
 // Middlewares for security and parsing
@@ -36,19 +38,11 @@ app.use('/api/auth', authRoutes);
 
 //testing apis
 app.get('/', async (req, res) => {
-  const token = jwt.sign({ loggedIn: true }, process.env.SECRET);
-  res.cookie('token', { token }, { maxAge: 5 * 60 * 1000 });
-
-  return res.json({ message: 'Connected to the server' });
+  let otp = generateOTP(4);
+  return res.json({ message: 'Connected to the server', otp });
 });
-app.post('/', (req, res) => {
-  console.log('got post request==', req.body);
-  let { email, name } = req.body;
-  res.cookie(
-    'token',
-    { token: '1242342', loggedIn: true, email, name },
-    { maxAge: 2 * 68 * 1000 }
-  );
 
-  return res.json({ message: 'got post reqest', data: req.body });
+app.post('/', (req, res) => {
+  const id = extractJWT(req, 'userId');
+  return res.json({ message: 'got post reqest', id });
 });

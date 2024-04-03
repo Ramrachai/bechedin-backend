@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sendEmail = require('../../utils/sendEmail');
 const OTPModel = require('../../models/otpModel');
-
+const extractJWT = require('../../utils/extractJWT');
+const generateOTP = require('../../utils/generateOTP');
 
 // ==== user registration controller
 const register = async (req, res) => {
@@ -87,6 +88,7 @@ const login = async (req, res) => {
         userId: user._id,
         userName: user.name,
         useEmail: user.email,
+        role: user.role,
         loggedIn: true,
       },
       process.env.SECRET,
@@ -100,6 +102,7 @@ const login = async (req, res) => {
       { token, loggedIn: true },
       { httpOnly: true, secure: true, maxAge }
     );
+    console.log('login successful');
     return res.status(200).json({
       token,
       user: { _id: user.id, email: user.email, role: user.role },
@@ -116,28 +119,32 @@ const login = async (req, res) => {
 const verifyOTP = async (req, res) => {
   try {
     const { otp } = req.body;
-    console.log(
-      'your cookies  are : ',
-      req.cookies,
-      `email == ${req.cookies.userInfo.email} || id == ${req.cookies.userInfo.id}`
-    );
     const { email, id } = req.cookies.userInfo;
     const DB_OTP = await OTPModel.findOne({ email });
     console.log('DB otp status is ', DB_OTP);
     if (!DB_OTP || DB_OTP.otp !== Number(otp)) {
-      await UserModel.findOneAndDelete({ email }); //delet unverified user
+      await UserModel.findOneAndDelete({ email }); //delete unverified user
+      req.clearCookie('userInfo');
       return res.status(400).json({ verified: false, message: 'Invalid OTP' });
     }
 
     //after successful verification
     await OTPModel.findOneAndDelete({ email }); // delete otp
-    console.log('otp deleted from OTPModel');
-    await UserModel.findByIdAndUpdate(id, { $set: { isVerified: true } }); // update user status
-    console.log('user status updated: isVarified=true');
+    const verifiedUser = await UserModel.findByIdAndUpdate(
+      id,
+      { $set: { isVerified: true } },
+      { new: true }
+    ); // update user status
 
     // Generate JWT token and login user
     const token = jwt.sign(
-      { userId: DB_OTP._id, userEmail: DB_OTP.email, loggedIn: true },
+      {
+        userId: verifiedUser._id,
+        userName: verifiedUser.name,
+        useEmail: verifiedUser.email,
+        role: verifiedUser.role,
+        loggedIn: true,
+      },
       process.env.SECRET,
       { expiresIn: '24h' }
     );
@@ -173,7 +180,7 @@ const logOutUser = async (req, res) => {
 // Log in Status Controller
 // ==================
 const logInStatus = async (req, res) => {
-  const {token} = req.cookies.token;
+  const { token } = req.cookies.token;
   if (!token) {
     return res.json(false);
   }
@@ -187,10 +194,116 @@ const logInStatus = async (req, res) => {
   });
 };
 
+// ==================
+// Change Password Controller
+// ==================
+const changePassword = async (req, res) => {
+  const id = extractJWT(req, 'userId');
+  const user = await UserModel.findById(id);
+  const { oldPassword, newPassword } = req.body;
+
+  if (!user) {
+    console.log('user not found');
+    return res
+      .status(400)
+      .json({ message: 'User not found, please signup or signin first' });
+  }
+
+  //validation
+  if (!oldPassword || !newPassword) {
+    console.log('fill old and new password fields');
+    return res
+      .status(400)
+      .json({ message: 'Please provide old password and new password' });
+  }
+
+  //check if old password matches password in DB
+
+  const isValidPassword = oldPassword === user.password;
+  //=====!important: must enable following line to for production =====
+  // const isValidPassword = await brypt.compare(oldPassword, user.password)
+
+  //save new password
+  if (user && isValidPassword) {
+    user.password = newPassword;
+    await user.save();
+    return res
+      .status(200)
+      .json({ message: 'Password Changed Successfully', changePassword: true });
+  } else {
+    return res
+      .status(400)
+      .json({ message: 'Invalid Old Password', changePassword: false });
+  }
+};
+
+// ==================
+// Forget Password Controller
+// ==================
+
+const forgetPassword = async (req, res) => {
+  console.log('forget password route ');
+  const { email } = req.body;
+  const OTP = generateOTP(4);
+  const user = await UserModel.findOne({ email });
+  !user && res.status(400).json({ message: 'User not found!' }).end();
+
+  user.resetToken = OTP;
+  user.resetTokenExpiry = Date.now() + 3600000; // 1h
+  await user.save();
+
+  const OTP_MESSAGE = `OTP for your Forget password is ${OTP}`;
+  const emailResult = await sendEmail(
+    email,
+    'OTP for Forget Password',
+    OTP_MESSAGE
+  );
+  console.log('email result == ', emailResult);
+  if (emailResult.success) {
+    return res.status(200).json({
+      message: 'OTP for Forget password email sent successfully.',
+      success: true,
+    });
+  } else {
+    return res.status(400).json({
+      message: 'Error sending OTP mail for Forget password',
+      success: false,
+    });
+  }
+};
+
+// ==================
+// Reset Password Controller
+// ==================
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    const user = await UserModel.findOne({
+      resetToken: Number(token),
+      resetTokenExpiry: { $gt: Date.now() },
+    });
+
+    !user &&
+      res.status(404).json({ message: 'Invalid or expired token' }).end();
+
+    user.password = newPassword;
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+    return res
+      .status(200)
+      .json({ message: 'Password Reset Successful', success: true });
+  } catch (error) {}
+};
+
 module.exports = {
   register,
   login,
   verifyOTP,
   logOutUser,
   logInStatus,
+  changePassword,
+  forgetPassword,
+  resetPassword,
 };
