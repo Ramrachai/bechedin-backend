@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
+const jwt = require('jsonwebtoken');
 const app = express();
 
 // Middlewares for security and parsing
@@ -35,12 +36,9 @@ app.use('/api/auth', authRoutes);
 
 //testing apis
 app.get('/', async (req, res) => {
-  res.cookie(
-    'token',
-    { token: 12312312, username: 'abc' },
-    { maxAge: 2 * 60 * 1000 }
-  );
-  
+  const token = jwt.sign({ loggedIn: true }, process.env.SECRET);
+  res.cookie('token', { token }, { maxAge: 5 * 60 * 1000 });
+
   return res.json({ message: 'Connected to the server' });
 });
 app.post('/', (req, res) => {

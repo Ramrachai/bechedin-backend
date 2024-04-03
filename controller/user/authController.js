@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const sendEmail = require('../../utils/sendEmail');
 const OTPModel = require('../../models/otpModel');
 
+
 // ==== user registration controller
 const register = async (req, res) => {
   try {
@@ -61,7 +62,7 @@ const register = async (req, res) => {
 };
 
 // ==================
-// USER LOGIN  Controller 
+// USER LOGIN  Controller
 // ==================
 const login = async (req, res) => {
   try {
@@ -110,7 +111,7 @@ const login = async (req, res) => {
 };
 
 // ==================
-// OTP verification Controller 
+// OTP verification Controller
 // ==================
 const verifyOTP = async (req, res) => {
   try {
@@ -156,24 +157,40 @@ const verifyOTP = async (req, res) => {
   }
 };
 
-
-
-
-
 // ==================
-// Log out Controller 
+// Log out Controller
 // ==================
 
-
-const logOutUser = async (req,res) => {
+const logOutUser = async (req, res) => {
   res.clearCookie('token');
   res.clearCookie('userInfo');
-  return res.status(200).json({message: "Loged out Successful", logOut: true})
-}
+  return res
+    .status(200)
+    .json({ message: 'Loged out Successful', logOut: true });
+};
+
+// ==================
+// Log in Status Controller
+// ==================
+const logInStatus = async (req, res) => {
+  const {token} = req.cookies.token;
+  if (!token) {
+    return res.json(false);
+  }
+  jwt.verify(token, process.env.SECRET, (err, decoded) => {
+    if (err) {
+      return res.json(false);
+    }
+    return decoded.loggedIn === true
+      ? res.json(true)
+      : res.status(401).json(false);
+  });
+};
 
 module.exports = {
   register,
   login,
   verifyOTP,
-  logOutUser
+  logOutUser,
+  logInStatus,
 };
