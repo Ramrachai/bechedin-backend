@@ -35,7 +35,12 @@ app.use('/api/auth', authRoutes);
 
 //testing apis
 app.get('/', async (req, res) => {
-  console.log('get request received');
+  res.cookie(
+    'token',
+    { token: 12312312, username: 'abc' },
+    { maxAge: 2 * 60 * 1000 }
+  );
+  
   return res.json({ message: 'Connected to the server' });
 });
 app.post('/', (req, res) => {

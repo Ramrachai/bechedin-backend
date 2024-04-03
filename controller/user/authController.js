@@ -60,7 +60,9 @@ const register = async (req, res) => {
   }
 };
 
-//==== user login controller
+// ==================
+// USER LOGIN  Controller 
+// ==================
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -107,7 +109,9 @@ const login = async (req, res) => {
   }
 };
 
-// POST endpoint to verify OTP
+// ==================
+// OTP verification Controller 
+// ==================
 const verifyOTP = async (req, res) => {
   try {
     const { otp } = req.body;
@@ -152,8 +156,24 @@ const verifyOTP = async (req, res) => {
   }
 };
 
+
+
+
+
+// ==================
+// Log out Controller 
+// ==================
+
+
+const logOutUser = async (req,res) => {
+  res.clearCookie('token');
+  res.clearCookie('userInfo');
+  return res.status(200).json({message: "Loged out Successful", logOut: true})
+}
+
 module.exports = {
   register,
   login,
   verifyOTP,
+  logOutUser
 };
