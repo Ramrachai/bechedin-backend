@@ -8,10 +8,17 @@ const authRoutes = require('./routes/authRoutes');
 const jwt = require('jsonwebtoken');
 const extractJWT = require('./utils/extractJWT');
 const generateOTP = require('./utils/generateOTP');
+const OtpModel = require('./models/otpModel');
 const app = express();
 
 // Middlewares for security and parsing
-app.use(cors());
+// Configure CORS options
+const corsOptions = {
+  origin: 'http://localhost:3000', // Replace with your frontend URL
+  credentials: true, // Allow cookies to be sent with the request
+};
+
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -39,10 +46,12 @@ app.use('/api/auth', authRoutes);
 //testing apis
 app.get('/', async (req, res) => {
   let otp = generateOTP(4);
-  return res.json({ message: 'Connected to the server', otp });
+  res.cookie('token', otp);
+  return res.json({ otp, message: 'Connected to the server' });
 });
 
 app.post('/', (req, res) => {
-  const id = extractJWT(req, 'userId');
-  return res.json({ message: 'got post reqest', id });
+  console.log(req.cookies);
+  let token = req.cookies.token;
+  return res.json({ message: 'got post reqest', token });
 });

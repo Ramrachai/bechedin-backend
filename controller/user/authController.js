@@ -6,6 +6,7 @@ const sendEmail = require('../../utils/sendEmail');
 const OTPModel = require('../../models/otpModel');
 const extractJWT = require('../../utils/extractJWT');
 const generateOTP = require('../../utils/generateOTP');
+const sendOTPEmail = require('../../utils/sendOTPEmail');
 
 // ==== user registration controller
 const register = async (req, res) => {
@@ -33,32 +34,37 @@ const register = async (req, res) => {
     }
 
     //send otp to email
-    const otp = Math.floor(Math.random() * 9000 + 1000);
-    const emailSubject = 'OTP from Bike Arot';
-    const emailText = `Your OTP for Bike arot account registration is ${otp}`;
-    const emailResult = await sendEmail(email, emailSubject, emailText);
+    const OTP = generateOTP(4);
+    const emailResult = await sendOTPEmail(email, OTP);
     if (emailResult.success) {
-      console.log('OTP send successfully');
-      await OTPModel.create({ email, otp }); // save otp and email in DB
+      console.log('OTP send successfully =', OTP);
+      newUser.resetToken = OTP; // save otp and email in DB
+      newUser.resetTokenExpiry = Date.now() + 3600;
+      await newUser.save();
     } else {
       console.log('Failed to send OTP via Email');
     }
 
     const maxAge = 60 * 60 * 1000; //  1 hour
 
-    res.cookie(
-      'userInfo',
-      { email: newUser.email, id: newUser._id },
-      { maxAge: maxAge }
+    const token = jwt.sign(
+      {
+        userId: newUser._id,
+        userEmail: newUser.email,
+      },
+      process.env.SECRET,
+      { expiresIn: '1h' }
     );
 
+    res.cookie('token', { token }, { secure: true, maxAge });
+
     return res.status(201).json({
-      status: 'success',
+      success: true,
       message: 'User created successfully',
       data: newUser,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ success: true, message: error.message });
   }
 };
 
@@ -95,16 +101,13 @@ const login = async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    const maxAge = 5 * 60 * 1000; // 24 hours in milisecond
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milisecond
 
-    res.cookie(
-      'token',
-      { token, loggedIn: true },
-      { httpOnly: true, secure: true, maxAge }
-    );
+    res.cookie('token', { token }, { secure: true, maxAge });
     console.log('login successful');
     return res.status(200).json({
       token,
+      loggedIn: true,
       user: { _id: user.id, email: user.email, role: user.role },
     });
   } catch (error) {
@@ -114,28 +117,57 @@ const login = async (req, res) => {
 };
 
 // ==================
+// Resend OTP  Controller
+// ==================
+const resedOTP = async (req, res) => {
+  const email = extractJWT(req, 'useEmail');
+  const OTP = generateOTP(4);
+  try {
+    const otpStatus = await sendOTPEmail(email, OTP);
+    if (!otpStatus.success) throw new Error('Failed to ReSend OTP Email');
+    await OTPModel.create({ email, otp: OTP });
+    return res
+      .status(200)
+      .json({ success: true, message: `An OTP has been sent to ${email}` });
+  } catch (error) {
+    console.error(`Resend OTP failed:`, error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==================
 // OTP verification Controller
 // ==================
 const verifyOTP = async (req, res) => {
   try {
-    const { otp } = req.body;
-    const { email, id } = req.cookies.userInfo;
-    const DB_OTP = await OTPModel.findOne({ email });
-    console.log('DB otp status is ', DB_OTP);
-    if (!DB_OTP || DB_OTP.otp !== Number(otp)) {
+    let { otp } = req.body;
+    const email = extractJWT(req, 'userEmail');
+    const id = extractJWT(req, 'userId');
+
+    console.log(
+      'verify otp==',
+      'email ==' + email,
+      'id ==' + id,
+      'otp ==' + otp
+    );
+
+    const DB_USER = await UserModel.findOne({ email });
+    console.log('DB otp status is =', DB_USER);
+    if (
+      !DB_USER ||
+      (DB_USER.resetToken !== Number(otp) &&
+        DB_USER.resetTokenExpiry > Date.now())
+    ) {
       await UserModel.findOneAndDelete({ email }); //delete unverified user
-      req.clearCookie('userInfo');
+      console.log('deleted unverified user. ');
       return res.status(400).json({ verified: false, message: 'Invalid OTP' });
     }
 
     //after successful verification
-    await OTPModel.findOneAndDelete({ email }); // delete otp
-    const verifiedUser = await UserModel.findByIdAndUpdate(
-      id,
-      { $set: { isVerified: true } },
-      { new: true }
-    ); // update user status
-
+    DB_USER.resetToken = undefined; // delete otp
+    DB_USER.resetTokenExpiry = undefined;
+    DB_USER.isVerified = true;
+    let verifiedUser = await DB_USER.save();
     // Generate JWT token and login user
     const token = jwt.sign(
       {
@@ -149,11 +181,7 @@ const verifyOTP = async (req, res) => {
       { expiresIn: '24h' }
     );
     let maxAge = 60 * 60 * 1000; // 1 hour
-    res.cookie(
-      'token',
-      { token, loggedIn: true },
-      { httpOnly: true, secure: true, maxAge }
-    );
+    res.cookie('token', { token, loggedIn: true }, { secure: true, maxAge });
     console.log('token sent in cookie');
     return res
       .status(200)
@@ -180,11 +208,11 @@ const logOutUser = async (req, res) => {
 // Log in Status Controller
 // ==================
 const logInStatus = async (req, res) => {
-  const { token } = req.cookies.token;
-  if (!token) {
-    return res.json(false);
+  const cookie = req.cookies.token;
+  if (!cookie) {
+    return res.json(false).end();
   }
-  jwt.verify(token, process.env.SECRET, (err, decoded) => {
+  jwt.verify(cookie.token, process.env.SECRET, (err, decoded) => {
     if (err) {
       return res.json(false);
     }
@@ -301,6 +329,7 @@ module.exports = {
   register,
   login,
   verifyOTP,
+  resedOTP,
   logOutUser,
   logInStatus,
   changePassword,
