@@ -6,7 +6,7 @@ router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.get('/logout', authController.logOutUser);
 router.post('/verify-otp', authController.verifyOTP);
-router.post('/resend-otp', authController.resedOTP);
+router.get('/resend-otp', authController.resedOTP);
 router.get('/logInStatus', authController.logInStatus);
 router.patch('/changepassword', authController.changePassword);
 router.patch('/forgetpassword', authController.forgetPassword);
